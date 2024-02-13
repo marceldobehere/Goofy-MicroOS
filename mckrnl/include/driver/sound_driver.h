@@ -49,8 +49,9 @@ typedef struct sound_context {
 
 typedef struct sound_driver {
 	driver_t driver;
-	void (*run)(struct sound_driver*, coro_t* coro, sound_context_t* context);
+	//void (*run)(struct sound_driver*, coro_t* coro, sound_context_t* context);
 	int (*get_channels)(struct sound_driver*);
+	void (*step)(struct sound_driver*);
 } sound_driver_t;
 
 void sound_register_if_better(struct sound_driver* d);

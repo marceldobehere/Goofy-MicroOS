@@ -92,12 +92,12 @@ int pc_speaker_get_channels(sound_driver_t* driver) {
 	return 1;
 }
 
-sound_driver_t pc_speaker_driver = {
-	.driver = {
-		.get_device_name = pc_speaker_get_device_name,
-		.is_device_present = pc_speaker_is_device_present,
-		.init = pc_speaker_init
-	},
-	.run = pc_speaker_run,
-	.get_channels = pc_speaker_get_channels
-};
+// sound_driver_t pc_speaker_driver = {
+// 	.driver = {
+// 		.get_device_name = pc_speaker_get_device_name,
+// 		.is_device_present = pc_speaker_is_device_present,
+// 		.init = pc_speaker_init
+// 	},
+// 	.run = pc_speaker_run,
+// 	.get_channels = pc_speaker_get_channels
+// };

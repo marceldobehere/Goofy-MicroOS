@@ -50,6 +50,8 @@
 #include <devices/framebuffer.h>
 #include <devices/fst.h>
 
+#include <driver/sound/ac97/ac97.h>
+
 
 // char test_str[] = "Hello world!";
 // void test_read(struct devfs_file* dfile, file_t* file, void* buf, size_t size, size_t offset) {
@@ -112,6 +114,11 @@ void _main(multiboot_info_t* mb_info) {
 	register_pci_driver_vd(0x1022, 0x2000, am79C973_pci_found);
 	register_pci_driver_vd(0x8086, 0x100E, e1000_pci_found);
 
+	register_pci_driver_cs(0x04, 0x01, 0x00, ac97_pci_found);
+	// register_pci_driver_vd(0x8086, 0x3A3E, ac97_pci_found);
+	// register_pci_driver_vd(0x8086, 0x3A6E, ac97_pci_found);
+	// register_pci_driver_vd(0x1022, 0x15E3, ac97_pci_found);
+
 	rsdp_init();
 	dsdt_init();
 #ifdef PARSE_MADT
@@ -134,7 +141,7 @@ void _main(multiboot_info_t* mb_info) {
     register_driver((driver_t*) &pit_driver);
 	register_driver((driver_t*) &hpet_driver);
 	register_driver((driver_t*) &cmos_driver);
-	register_driver((driver_t*) &pc_speaker_driver);
+	//register_driver((driver_t*) &pc_speaker_driver);
 
 	activate_drivers();
 
