@@ -164,3 +164,53 @@ void disable_bus_mastering(uint64_t address) {
 	comm.attrs.bus_master = false;
 	io_write_word(address, PCI_COMMAND, comm.value);
 }
+
+#include <driver/pci/pci_bar.h>
+
+uint8_t read_byte(uint64_t address, pci_bar_t type, uint8_t field)
+{
+	if (type.type == MMIO32 || type.type == MMIO64)
+		return *(uint8_t*)(type.mem_address + field);
+	else if (type.type == IO)
+		return inb(type.io_address + field);
+}
+
+uint16_t read_word(uint64_t address, pci_bar_t type, uint8_t field)
+{
+	if (type.type == MMIO32 || type.type == MMIO64)
+		return *(uint16_t*)(type.mem_address + field);
+	else if (type.type == IO)
+		return inw(type.io_address + field);
+}
+
+uint32_t read_dword(uint64_t address, pci_bar_t type, uint8_t field)
+{
+	if (type.type == MMIO32 || type.type == MMIO64)
+		return *(uint32_t*)(type.mem_address + field);
+	else if (type.type == IO)
+		return inl(type.io_address + field);
+}
+
+void write_byte(uint64_t address, pci_bar_t type, uint16_t field, uint8_t value)
+{
+	if (type.type == MMIO32 || type.type == MMIO64)
+		*(uint8_t*)(type.mem_address + field) = value;
+	else if (type.type == IO)
+		outb(type.io_address + field, value);
+}
+
+void write_word(uint64_t address, pci_bar_t type, uint16_t field, uint16_t value)
+{
+	if (type.type == MMIO32 || type.type == MMIO64)
+		*(uint16_t*)(type.mem_address + field) = value;
+	else if (type.type == IO)
+		outw(type.io_address + field, value);
+}
+
+void write_dword(uint64_t address, pci_bar_t type, uint16_t field, uint32_t value)
+{
+	if (type.type == MMIO32 || type.type == MMIO64)
+		*(uint32_t*)(type.mem_address + field) = value;
+	else if (type.type == IO)
+		outl(type.io_address + field, value);
+}

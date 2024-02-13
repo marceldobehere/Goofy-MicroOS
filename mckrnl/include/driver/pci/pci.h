@@ -76,3 +76,12 @@ void enable_interrupt(uint64_t address);
 void disable_interrupt(uint64_t address);
 void enable_bus_mastering(uint64_t address);
 void disable_bus_mastering(uint64_t address);
+
+
+uint8_t io_read_byte(uint64_t address, uint8_t field);
+uint16_t io_read_word(uint64_t address, uint8_t field);
+uint32_t io_read_dword(uint64_t address, uint8_t field);
+
+void io_write_byte(uint64_t address, uint8_t field, uint8_t value);
+void io_write_word(uint64_t address, uint8_t field, uint16_t value);
+void io_write_dword(uint64_t address, uint8_t field, uint32_t value);

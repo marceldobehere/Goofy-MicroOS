@@ -131,15 +131,15 @@ void HandleIRQ(AC97Driver* driver);
 
 #include <utils/io.h>
 
-inline void write_word(uint64_t address, pci_bar_t type, uint16_t field, uint16_t value)
-{
-    if (type.type == MMIO32 || type.type == MMIO64)
-        *(uint16_t*)((uint32_t)type.mem_address + field) = value;
-    else if (type.type == IO)
-        outw(type.io_address + field, value);
-}
+// void write_word(uint64_t address, pci_bar_t type, uint16_t field, uint16_t value)
+// {
+//     if (type.type == MMIO32 || type.type == MMIO64)
+//         *(uint16_t*)((uint32_t)type.mem_address + field) = value;
+//     else if (type.type == IO)
+//         outw(type.io_address + field, value);
+// }
 
-inline void write_mixer(AC97Driver* driver, MixerRegisters reg, uint16_t val) {
+static inline void write_mixer(AC97Driver* driver, MixerRegisters reg, uint16_t val) {
     write_word((uint64_t)driver->PCIBaseAddress, driver->m_mixer_type, reg, val);//outw(m_mixer_address + reg, val);
     io_wait(10);
 }
