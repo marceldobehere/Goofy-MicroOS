@@ -71,3 +71,96 @@ pci_device_header_t get_device_header(uint16_t bus, uint16_t device, uint16_t fu
 	result.interrupt_pin = pci_readd(bus, device, function, 0x3d);
 	return result;
 }
+
+#include <driver/pci/pci_io.h>
+
+IOAddress get_address(uint64_t addr, uint8_t field)
+{
+    IOAddress address;
+    address.attrs.field = field;
+    address.attrs.function = (addr >> 12) & 0b111; // 3 bit
+    address.attrs.slot = (addr >> 15) & 0b11111; // 5 bit
+    address.attrs.bus = (addr >> 20) & 0b11111111; // 8 bit
+    address.attrs.enable = true;
+    //0x80000000 
+    return address;
+}
+
+uint8_t io_read_byte(uint64_t address, uint8_t field) {
+    outl(PCI_ADDRESS_PORT, get_address(address, field).value);
+    return inb(PCI_DATA_PORT + (field & 3));
+}
+
+uint16_t io_read_word(uint64_t address, uint8_t field){
+    outl(PCI_ADDRESS_PORT, get_address(address, field).value);
+    return inw(PCI_DATA_PORT + (field & 2));
+}
+
+uint32_t io_read_dword(uint64_t address, uint8_t field) {
+    outl(PCI_ADDRESS_PORT, get_address(address, field).value);
+    return inl(PCI_DATA_PORT);
+}
+
+void io_write_byte(uint64_t address, uint8_t field, uint8_t value) {
+    outl(PCI_ADDRESS_PORT, get_address(address, field).value);
+    outb(PCI_DATA_PORT + (field & 3), value);
+}
+
+void io_write_word(uint64_t address, uint8_t field, uint16_t value) {
+    outl(PCI_ADDRESS_PORT, get_address(address, field).value);
+    outw(PCI_DATA_PORT + (field & 2), value);
+}
+
+void io_write_dword(uint64_t address, uint8_t field, uint32_t value) {
+    outl(PCI_ADDRESS_PORT, get_address(address, field).value);
+    outl(PCI_DATA_PORT, value);
+}
+
+void enable_io_space(uint64_t address)
+{
+	Command comm = {.value = io_read_word(address, PCI_COMMAND)};
+	comm.attrs.io_space = true;
+	io_write_word(address, PCI_COMMAND, comm.value);
+}
+void disable_io_space(uint64_t address)
+{
+	Command comm = {.value = io_read_word(address, PCI_COMMAND)};
+	comm.attrs.io_space = false;
+	io_write_word(address, PCI_COMMAND, comm.value);
+}
+void enable_mem_space(uint64_t address)
+{
+	Command comm = {.value = io_read_word(address, PCI_COMMAND)};
+	comm.attrs.mem_space = true;
+	io_write_word(address, PCI_COMMAND, comm.value);
+}
+void disable_mem_space(uint64_t address)
+{
+	Command comm = {.value = io_read_word(address, PCI_COMMAND)};
+	comm.attrs.mem_space = false;
+	io_write_word(address, PCI_COMMAND, comm.value);
+}
+
+void enable_interrupt(uint64_t address) {
+	Command comm = {.value = io_read_word(address, PCI_COMMAND)};
+	comm.attrs.interrupt_disable = false;
+	io_write_word(address, PCI_COMMAND, comm.value);
+}
+
+void disable_interrupt(uint64_t address) {
+	Command comm = {.value = io_read_word(address, PCI_COMMAND)};
+	comm.attrs.interrupt_disable = true;
+	io_write_word(address, PCI_COMMAND, comm.value);
+}
+
+void enable_bus_mastering(uint64_t address) {
+	Command comm = {.value = io_read_word(address, PCI_COMMAND)};
+	comm.attrs.bus_master = true;
+	io_write_word(address, PCI_COMMAND, comm.value);
+}
+
+void disable_bus_mastering(uint64_t address) {
+	Command comm = {.value = io_read_word(address, PCI_COMMAND)};
+	comm.attrs.bus_master = false;
+	io_write_word(address, PCI_COMMAND, comm.value);
+}

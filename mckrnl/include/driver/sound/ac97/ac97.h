@@ -121,13 +121,13 @@ typedef struct AC97Driver
 } AC97Driver;
 
 AC97Driver* NEW_AC97Driver (pci_device_header_t header, uint16_t bus, uint16_t device, uint16_t function);
-bool AC97_DoQuickCheck();
-void AC97_reset_output();
-void AC97_set_sample_rate(uint32_t sample_rate);
-bool AC97_handle_irq();
-uint64_t AC97_writeBuffer(uint64_t offset, uint8_t* buffer, uint64_t count);
-bool AC97_CheckMusic();
-void HandleIRQ();
+bool AC97_DoQuickCheck(AC97Driver* driver);
+void AC97_reset_output(AC97Driver* driver);
+void AC97_set_sample_rate(AC97Driver* driver, uint32_t sample_rate);
+bool AC97_handle_irq(AC97Driver* driver);
+uint64_t AC97_writeBuffer(AC97Driver* driver, uint64_t offset, uint8_t* buffer, uint64_t count);
+bool AC97_CheckMusic(AC97Driver* driver);
+void HandleIRQ(AC97Driver* driver);
 
 #include <utils/io.h>
 

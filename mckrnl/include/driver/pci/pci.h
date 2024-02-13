@@ -66,3 +66,13 @@ void enumerate_pci();
 
 void register_pci_driver_cs(uint8_t _class, uint8_t subclass, uint8_t prog_IF, void (*load_driver)(pci_device_header_t header, uint16_t bus, uint16_t device, uint16_t function));
 void register_pci_driver_vd(uint16_t vendor_id, uint16_t device_id, void (*load_driver)(pci_device_header_t header, uint16_t bus, uint16_t device, uint16_t function));
+
+void enable_io_space(uint64_t address);
+void disable_io_space(uint64_t address);
+void enable_mem_space(uint64_t address);
+void disable_mem_space(uint64_t address);
+
+void enable_interrupt(uint64_t address);
+void disable_interrupt(uint64_t address);
+void enable_bus_mastering(uint64_t address);
+void disable_bus_mastering(uint64_t address);

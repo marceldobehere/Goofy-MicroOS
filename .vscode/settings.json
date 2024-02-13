@@ -43,7 +43,9 @@
 		"sound.h": "c",
 		"pci.h": "c",
 		"sound_driver.h": "c",
-		"pci_bar.h": "c"
+		"pci_bar.h": "c",
+		"ac97.h": "c",
+		"pci_io.h": "c"
 	},
     "deno.enable": true,
     "deno.lint": true,

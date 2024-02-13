@@ -33,3 +33,16 @@ uint16_t inw(uint16_t _port) {
 	__asm__ volatile("inw %1, %0" : "=a" (result) : "Nd" (_port));
 	return result;
 }
+
+void io_wait_1()
+{
+    inb(0x80);
+    outb(0x80, 0);
+    //asm volatile ("outb %%al, $0x80" : : "a"(0));
+} 
+
+void io_wait(uint64_t us) 
+{
+    while(us--)
+        io_wait_1();
+}
