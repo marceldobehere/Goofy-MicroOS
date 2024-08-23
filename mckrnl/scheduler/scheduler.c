@@ -14,12 +14,13 @@
 #include <driver/apic/lapic.h>
 #include <driver/apic/smp.h>
 #include <driver/timer_driver.h>
+#include <driver/char_output_driver.h>
 
 
 int current_pid = 0;
 task_t tasks[MAX_TASKS] = { 0 };
 
-task_t* init_task(void* entry, bool thread, task_t* parent) {	
+task_t* init_task(int term, void* entry, bool thread, task_t* parent) {	
 	bool old_shed = is_scheduler_running;
 	is_scheduler_running = false;
 
@@ -54,6 +55,11 @@ task_t* init_task(void* entry, bool thread, task_t* parent) {
 		.cs  = 0x18 | 0x03,
 		.ss  = 0x20 | 0x03,
 
+		.gs  = 0,
+		.fs  = 0,
+		.es  = 0x20 | 0x03,
+		.ds  = 0x20 | 0x03,
+
 		.eflags = 0x202,
 	};
 
@@ -66,6 +72,7 @@ task_t* init_task(void* entry, bool thread, task_t* parent) {
 	task->user_stack = user_stack;
 	task->pid = current_pid++;
 	task->wait_time = 0;
+	task->term = term;
 
 	if (!thread) {
 		task->context = vmm_create_context();
@@ -89,7 +96,7 @@ task_t* init_task(void* entry, bool thread, task_t* parent) {
 	return task;
 }
 
-int init_elf(void* image, char** argv, char** envp) {
+int init_elf(int term, void* image, char** argv, char** envp) {
 
 	struct elf_header* header = image;
 
@@ -98,7 +105,7 @@ int init_elf(void* image, char** argv, char** envp) {
 		return -1;
 	}
 
-	task_t* task = init_task((void*) header->entry, false, NULL);
+	task_t* task = init_task(term, (void*) header->entry, false, NULL);
 
 	struct elf_program_header* ph = (struct elf_program_header*) (((char*) image) + header->ph_offset);
 	for (int i = 0; i < header->ph_entry_count; i++, ph++) {
@@ -111,19 +118,6 @@ int init_elf(void* image, char** argv, char** envp) {
 			continue;
 		}    
 
-		// TODO
-		// TODO
-		// TODO
-		// TODO
-		// TODO
-		// TODO
-		// this is to fix alignment issues. THIS MIGHT LEAK MEMORY, it doesn't look like it does currently though
-		// TODO
-		// TODO
-		// TODO
-		// TODO
-		// TODO
-		// TODO
 		int real_size = ph->mem_size / 4096 + 1;
 		if (dest != real_dest) {
 			real_size++;
@@ -131,8 +125,11 @@ int init_elf(void* image, char** argv, char** envp) {
 
 		void* phys_loc = pmm_alloc_range(real_size);
 		for (int j = 0; j < real_size; j++) {
-			// maybe check if page is already mapped at virt loc?
-			vmm_map_page(task->context, (uintptr_t) real_dest + j * 4096, (uintptr_t) phys_loc + j * 4096, PTE_PRESENT | PTE_WRITE | PTE_USER);
+			if (vmm_lookup((uintptr_t) real_dest + j * 4096, task->context)) {
+				pmm_free(phys_loc + j * 4096);
+			} else {
+				vmm_map_page(task->context, (uintptr_t) real_dest + j * 4096, (uintptr_t) phys_loc + j * 4096, PTE_PRESENT | PTE_WRITE | PTE_USER);
+			}
 		}
 
 		vmm_context_t old = vmm_get_current_context();
@@ -246,7 +243,7 @@ cpu_registers_t* schedule(cpu_registers_t* registers, void* _) {
 		return registers;
 	}
 
-	if (tasks[current_task].pin) {
+	if (tasks[current_task].pin && tasks[current_task].term == global_char_output_driver->current_term) {
 		return tasks[current_task].registers;
 	}
 
@@ -312,6 +309,7 @@ int read_task_list(task_list_t* out, int max) {
 			char* argv;
 			vmm_read_context(tasks[i].argv, &argv, sizeof(char*), tasks[i].context);
 			vmm_read_context(argv, out[j].name, sizeof(out[j].name), tasks[i].context);
+			out[j].term = tasks[i].term;
 			out[j++].pid = tasks[i].pid;
 
 			if (j >= max) {

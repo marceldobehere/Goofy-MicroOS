@@ -16,6 +16,7 @@
 #include <driver/input/ps2_keyboard.h>
 #include <driver/input/ps2_mouse.h>
 #include <driver/disk/ata.h>
+#include <driver/disk/ahci.h>
 #include <driver/output/serial.h>
 #include <driver/clock/cmos.h>
 #include <driver/timer/pit.h>
@@ -49,6 +50,9 @@
 #include <devices/disk.h>
 #include <devices/framebuffer.h>
 #include <devices/fst.h>
+#include <devices/font.h>
+
+#include <gdb/gdb.h>
 
 #include <driver/sound/ac97/ac97.h>
 
@@ -72,32 +76,79 @@
 // 	.name = test_name
 // };
 
-void* find_multiboot_module(char* name) {
+multiboot_module_t* find_multiboot_module(char* name) {
 	multiboot_module_t* modules = global_multiboot_info->mbs_mods_addr;
 	for (int i = 0; i < global_multiboot_info->mbs_mods_count; i++) {
 		if (strcmp(modules[i].cmdline, name) == 0) {
-			return (void*) modules[i].mod_start;
+			return &modules[i];
 		}
 	}
 	abortf("Could not find multiboot module %s", name);
 	return NULL;
 }
 
+void load_init() {
+	char init_exec[64] = { 0 };
+	if (is_arg((char*) global_multiboot_info->mbs_cmdline, "--init", init_exec)) {
+		char init_arg[128] = { 0 };
+		bool has_init_arg = is_arg((char*) global_multiboot_info->mbs_cmdline, "--init-arg", init_arg);
 
+		char* argv[] = {
+			init_exec,
+			has_init_arg ? init_arg : NULL,
+			NULL
+		};
 
-void _main(multiboot_info_t* mb_info) {	
+		char* envp[] = {
+			NULL
+		};
+
+		debugf("loading %s as init process...", init_exec);
+		file_t* file = vfs_open(init_exec, FILE_OPEN_MODE_READ);
+		if (file == NULL) {
+			abortf("Could not open %s", init_exec);
+		}
+		void* buffer = vmm_alloc(file->size / 4096 + 1);
+		vfs_read(file, buffer, file->size, 0);
+		init_elf(1, buffer, argv, envp);
+		vmm_free(buffer, file->size / 4096 + 1);
+		vfs_close(file);
+	} else {
+		abortf("Please use --init to set a init process");
+	}
+}
+
+void _main(multiboot_info_t* mb_info) {
    	global_multiboot_info = mb_info;
 
 #ifdef TEXT_MODE_EMULATION
     char font_module[64] = { 0 };
+    multiboot_module_t* font = NULL;
 	if (is_arg((char*) global_multiboot_info->mbs_cmdline, "--font", font_module)) {
-		init_text_mode_emulation(psf1_buffer_to_font(find_multiboot_module(font_module)));
+	    font = find_multiboot_module(font_module);
+		init_text_mode_emulation(psf1_buffer_to_font((void*) font->mod_start));
 	}
 #endif
-	text_console_clrscr();
+	text_console_early();
+	text_console_clrscr(NULL, 1);
+
+	bool enable_serial = false;
+	if (is_arg((char*) global_multiboot_info->mbs_cmdline, "--serial", NULL)) {
+		enable_serial = true;
+		serial_early_init();
+	}
+
 
 	init_initial_gdt();
 	init_interrupts();
+
+	if (is_arg((char*) global_multiboot_info->mbs_cmdline, "--gdb", NULL)) {
+		if (!enable_serial) {
+			abortf("Cannot use gdb without serial");
+		}
+		gdb_active = true;
+		breakpoint();
+	}
 
 	pmm_init();
 	vmm_init();
@@ -106,13 +157,16 @@ void _main(multiboot_info_t* mb_info) {
 
 	char symbols_module[64] = { 0 };
 	if (is_arg((char*) global_multiboot_info->mbs_cmdline, "--syms", symbols_module)) {
-		init_global_symbols(find_multiboot_module(symbols_module));
+		init_global_symbols((void*) find_multiboot_module(symbols_module)->mod_start);
 	}
 
 	register_pci_driver_cs(0x1, 0x1, 0x0, ata_pci_found);
 	register_pci_driver_vd(0x10EC, 0x8139, rtl8139_pci_found);
 	register_pci_driver_vd(0x1022, 0x2000, am79C973_pci_found);
 	register_pci_driver_vd(0x8086, 0x100E, e1000_pci_found);
+#ifdef AHCI_DRIVER
+	register_pci_driver_cs(0x1, 0x6, 0x1, ahci_pci_found);
+#endif
 
 	register_pci_driver_cs(0x04, 0x01, 0x00, ac97_pci_found);
 	// register_pci_driver_vd(0x8086, 0x3A3E, ac97_pci_found);
@@ -127,7 +181,9 @@ void _main(multiboot_info_t* mb_info) {
 
 	enumerate_pci();
 
-	register_driver((driver_t*) &serial_output_driver);
+	if (!gdb_active && enable_serial) {
+		register_driver((driver_t*) &serial_output_driver);
+	}
 #ifdef FULL_SCREEN_TERMINAL
 #ifndef TEXT_MODE_EMULATION
 #error TEXT_MODE_EMULATION required!
@@ -149,28 +205,26 @@ void _main(multiboot_info_t* mb_info) {
 
 	char initrd_module[64] = { 0 };
 	if (is_arg((char*) global_multiboot_info->mbs_cmdline, "--initrd", initrd_module)) {
-		vfs_mount(initrd_mount((void*) find_multiboot_module(initrd_module)));
+		vfs_mount(initrd_mount((void*) find_multiboot_module(initrd_module)->mod_start));
 	}
 
 	vfs_mount(get_ramfs("tmp"));
 	vfs_mount((vfs_mount_t*) &global_devfs);
 
 	devfs_register_file(&global_devfs, &disk_file);
-#ifdef RAW_FRAMEBUFFER_ACCESS
-#ifndef TEXT_MODE_EMULATION
-#error TEXT_MODE_EMULATION required!
-#endif
+#ifdef TEXT_MODE_EMULATION
 	devfs_register_file(&global_devfs, &framebuffer_file);
 #endif
 #ifdef FULL_SCREEN_TERMINAL
 	devfs_register_file(&global_devfs, &fst_file);
+	devfs_register_file(&global_devfs, get_font_file(font));
 #endif
 
 	vfs_register_fs_scanner(fatfs_scanner);
 	vfs_register_fs_scanner(nextfs_scanner);
 
 	vfs_scan_fs();
-    
+
 
     char keymap_path[64] = { 0 };
 	if (is_arg((char*) global_multiboot_info->mbs_cmdline, "--keymap", keymap_path)) {
@@ -190,8 +244,8 @@ void _main(multiboot_info_t* mb_info) {
 	debugf("--- WARNING --- SMP is very experimantel!");
 	// wait();
 	smp_startup_all();
-#endif	
-	
+#endif
+
 	debugf("Boot finished at %d", time(global_clock_driver));
 
 	// while (true) {
@@ -199,30 +253,7 @@ void _main(multiboot_info_t* mb_info) {
 	// 	global_timer_driver->sleep(global_timer_driver, 1000);
 	// }
 
-	char init_exec[64] = { 0 };
-	if (is_arg((char*) global_multiboot_info->mbs_cmdline, "--init", init_exec)) {
-		char* argv[] = {
-			init_exec,
-			NULL
-		};
-
-		char* envp[] = {
-			NULL
-		};
-
-		debugf("loading %s as init process...", init_exec);
-		file_t* file = vfs_open(init_exec, FILE_OPEN_MODE_READ);
-		if (file == NULL) {
-			abortf("Could not open %s", init_exec);
-		}
-		void* buffer = vmm_alloc(file->size / 4096 + 1);
-		vfs_read(file, buffer, file->size, 0);
-		init_elf(buffer, argv, envp);
-		vmm_free(buffer, file->size / 4096 + 1);
-		vfs_close(file);
-	} else {
-		abortf("Please use --init to set a init process");
-	}
+	load_init();
 
 	init_killer();
 	init_scheduler();

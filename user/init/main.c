@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include <sys/spawn.h>
+#include <sys/graphics.h>
 #include <sys/env.h>
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <copy.h>
+#include <config.h>
 
 // #define ROOT_FS "initrd:/"
 #define TERMINAL "bin/terminal.elf"
@@ -28,7 +31,7 @@ char* copy_until(char until, char* src, char* dest) {
 char* child_envp[32] = { NULL };
 void envp_append(char* key, char* val) {
 	printf("Appending %s=%s to envp...\n", key, val);
-	
+
 	int sz = strlen(key) + strlen(val) + 2;
 	char* buf = malloc(sz);
 	memset(buf, 0, sz);
@@ -48,9 +51,25 @@ void envp_append(char* key, char* val) {
 }
 
 int main(int argc, char* argv[]) {
+	bool copy = false;
+
+	if (argc == 2 && strcmp(argv[1], "tmpfs") == 0) {
+		copy = true;
+	} 
+
 	char cwd[64] = { 0 };
-	copy_until(':', argv[0], cwd);
-	strcat(cwd, ":/");
+	if (copy) {
+		strcpy(cwd, "tmp:/");
+
+		char src[64] = { 0 };
+		copy_until(':', argv[0], src);
+		strcat(src, ":/");
+
+		recursive_dir_copy(src, cwd, true);
+	} else {
+		copy_until(':', argv[0], cwd);
+		strcat(cwd, ":/");
+	}
 	printf("got cwd %s\n", cwd);
 
 	set_env(SYS_SET_PWD_ID, cwd);
@@ -63,9 +82,16 @@ int main(int argc, char* argv[]) {
 	char path[128] = { 0 };
 	strcat(path, cwd);
 	strcat(path, "bin");
+	strcat(path, ";");
+	strcat(path, cwd);
+	strcat(path, "opt/bin");
 	envp_append("PATH", path);
 
 	envp_append("ROOT_FS", cwd);
+
+	if (vmode() == CUSTOM) {
+	    envp_append("FONT", "dev:/font");
+	}
 
 	char* autostart = "startup.msh";
 	FILE* f = fopen(autostart, "r");

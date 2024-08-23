@@ -13,6 +13,10 @@
                             "value": true
                         },
                         {
+                            "name": "GDB_DEBUG",
+                            "value": false
+                        },
+                        {
                             "name": "UBSAN_SUPRES_TYPE_MISSMATCH",
                             "value": true
                         },
@@ -27,6 +31,10 @@
                         {
                             "name": "ALLOW_PANIC_CONTINUE",
                             "value": true
+                        },
+                        {
+                            "name": "STACK_TRACE",
+                            "value": false
                         }
                     ]
                 }
@@ -83,6 +91,10 @@
                         {
                             "name": "THREADS",
                             "value": false
+                        },
+                        {
+                            "name": "AHCI_DRIVER",
+                            "value": false
                         }
                     ]
                 }
@@ -119,6 +131,10 @@
                         {
                             "name": "FULL_SCREEN_TERMINAL",
                             "value": false
+                        },
+                        {
+                            "name": "MAX_VTERM",
+                            "value": 4
                         }
                     ]
                 }
@@ -131,6 +147,10 @@
                         {
                             "name": "FD_OFFSET",
                             "value": 5
+                        },
+                        {
+                            "name": "FAST_MEMORY",
+                            "value": true
                         }
                     ]
                 }

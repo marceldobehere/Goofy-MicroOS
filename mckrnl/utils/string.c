@@ -1,5 +1,6 @@
 #include <utils/string.h>
 
+#include <config.h>
 #include <stddef.h>
 #include <utils/vsprintf.h>
 
@@ -19,9 +20,11 @@ int strlen(char* src) {
 
 int strnlen(const char *s, int maxlen) {
 	int i;
-	for (i = 0; i < maxlen; ++i)
-	if (s[i] == '\0')
-		break;
+	for (i = 0; i < maxlen; ++i) {
+		if (s[i] == '\0') {
+			break;
+		}
+	}
 	return i;
 }
 
@@ -60,7 +63,44 @@ int sprintf(char *buf, const char *fmt, ...) {
 	return i;
 }
 
-void* memcpy(void* dest, const void* src, int n) {
+#ifdef FAST_MEMORY
+void* memcpy(void* dest, const void* src, unsigned int n) {
+    unsigned int nn = n / 4;
+
+    __asm__ __volatile__ (
+        "rep movsl;" : "+D" (dest), "+S" (src), "+c" (nn) :: "memory"
+    );
+
+    unsigned int remaining = n % 4;
+
+    uint8_t* d = (uint8_t*) dest;
+    const uint8_t* s = (const uint8_t*) src;
+    while (remaining--) {
+        *d++ = *s++;
+    }
+
+    return dest;
+}
+
+void* memset(void* start, uint8_t value, unsigned int num) {
+    unsigned int nn = num / 4;
+    unsigned int long_value = (value << 24) | (value << 16) | (value << 8) | value;
+
+    __asm__ __volatile__ (
+        "rep stosl;" : "+D" (start), "+c" (nn) : "a" (long_value) : "memory"
+    );
+
+    unsigned int remaining = num % 4;
+
+    uint8_t* s = (uint8_t*) start;
+    while (remaining--) {
+        *s++ = value;
+    }
+
+    return start;
+}
+#else
+void* memcpy(void* dest, const void* src, unsigned int n) {
 	char* d = (char*) dest;
 	char* s = (char*) src;
 	while(n--) {
@@ -69,15 +109,18 @@ void* memcpy(void* dest, const void* src, int n) {
 	return dest;
 }
 
-void* memset(void* start, uint8_t value, uint32_t num) {
+
+void* memset(void* start, uint8_t value, unsigned int num) {
 	char* s = (char*) start;
 	while(num--) {
 		*s++ = value;
 	}
 	return start;
 }
+#endif
 
-int memcmp(const void * _s1, const void* _s2, int n) {
+
+int memcmp(const void * _s1, const void* _s2, unsigned int n) {
 	const unsigned char* s1 = (unsigned char*) _s1;
 	const unsigned char* s2 = (unsigned char*) _s2;
 

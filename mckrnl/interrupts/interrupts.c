@@ -1,5 +1,7 @@
 #include <interrupts/interrupts.h>
 
+#include <gdb/gdb.h>
+
 #include <interrupts/gdt.h>
 #include <stdio.h>
 #include <utils/io.h>
@@ -9,6 +11,7 @@
 
 #include <driver/apic/smp.h>
 #include <driver/acpi/madt.h>
+#include <config.h>
 
 #include <stddef.h>
 
@@ -98,8 +101,6 @@ void init_interrupts() {
 
 
 void halt_internal() {
-	LAPIC_ID(id);
-	printf("Halting core %d!\n", id);
 	while(1) {
 		asm volatile("cli; hlt");
 	}
@@ -195,6 +196,11 @@ cpu_registers_t* handle_interrupt(cpu_registers_t* cpu) {
 		halt_internal();
 	}
 
+	if ((cpu->intr == 1 || cpu->intr == 3) && gdb_active) {
+		gdb_interrupt(new_cpu);
+		return new_cpu;
+	}
+
 	if (cpu->intr <= 0x1f) {
 		if (interrupt_handlers[cpu->intr] != 0) {
 			new_cpu = interrupt_handlers[cpu->intr](cpu, interrupt_handlers_special_data[cpu->intr]);
@@ -243,12 +249,14 @@ cpu_registers_t* handle_interrupt(cpu_registers_t* cpu) {
 }
 
 void halt() {
+#ifdef SMP
 	LAPIC_ID(id);
 	for (int i = 0; i < madt_lapic_count; i++) {
 		if (i != id) {
 			lapic_ipi(i, 0xff);
 		}
 	}
+#endif
 
 	halt_internal();
 }

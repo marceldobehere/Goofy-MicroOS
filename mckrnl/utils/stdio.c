@@ -11,6 +11,7 @@
 #include <driver/char_input_driver.h>
 #include <utils/lock.h>
 #include <utils/trace.h>
+#include <gdb/gdb.h>
 
 char_output_driver_t* debugf_driver = NULL;
 char_output_driver_t* printf_driver = NULL;
@@ -37,11 +38,11 @@ int printf(const char *format, ...) {
 	if (printf_driver != NULL) {
 		int i = 0;
 		while (buf[i] != '\0') {
-			printf_driver->putc(printf_driver, buf[i]);
+			printf_driver->putc(printf_driver, printf_driver->current_term, buf[i]);
 			i++;
 		}
 	} else {
-		text_console_puts(buf);
+		text_console_puts(NULL, 1, buf);
 	}
 	atomic_release_spinlock(printf_lock);
 
@@ -61,11 +62,11 @@ int debugf_intrnl(const char *format, ...) {
 	if (debugf_driver != NULL) {
 		int i = 0;
 		while (buf[i] != '\0') {
-			debugf_driver->putc(debugf_driver, buf[i]);
+			debugf_driver->putc(debugf_driver, debugf_driver->current_term, buf[i]);
 			i++;
 		}
 	} else {
-		text_console_puts(buf);
+		text_console_puts(NULL, 1, buf);
 	}
 	atomic_release_spinlock(debugf_lock);
 
@@ -80,6 +81,7 @@ int _debugf(const char* str) {
 #endif
 }
 
+#ifdef STACK_TRACE
 void stacktrace_print(int frame_num, uint32_t eip) {
 	char* symbol = resolve_symbol_from_addr(eip);
 	if (symbol) {
@@ -89,8 +91,9 @@ void stacktrace_print(int frame_num, uint32_t eip) {
 		printf("[ 0x%x ] <unknown>\n", eip);
 	}
 }
+#endif
 
-int abortf(const char *format, ...) {
+int abortf_intrnl(const char* file, int line, const char* function, const char *format, ...) {
 	__asm__ volatile("cli");
 	
 	va_list args;
@@ -103,8 +106,12 @@ int abortf(const char *format, ...) {
 	printf("(/ o_o)/ Oh no! Something terrible has happened...\n");
 	printf("Kernel PANIC -> %s\n", buf);
 
+#ifdef STACK_TRACE
 	printf("Call Trace:\n");
 	stack_unwind(100, stacktrace_print);
+#else
+	printf("Location: %s:%d in %s\n", file, line, function);
+#endif
 
 #ifdef ALLOW_PANIC_CONTINUE
 	debugf("KERNEL PANIC: Press <x> to continue execution or <h> to halt");
@@ -127,4 +134,12 @@ do_halt:
 	while (true) {
 		halt();
 	}
+}
+
+void breakpoint() {
+	if (!gdb_active) {
+		debugf("breakpoint() ignored since gdb isn't activated");
+		return;
+	}
+	__asm__ __volatile__ ("int3");
 }

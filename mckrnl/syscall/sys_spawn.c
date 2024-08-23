@@ -12,14 +12,16 @@ cpu_registers_t* sys_spawn(cpu_registers_t* regs) {
 
 	file_t* file = vfs_open(path, FILE_OPEN_MODE_READ);
 	if (!file) {
-		debugf("Failed to open initrd:/bin/terminal.elf");
+		debugf("Failed to open %s", path);
 		regs->esi = -1;
 		return regs;
 	}
 
+	task_t* current = get_self();
+
 	void* buffer = vmm_alloc(file->size / 4096 + 1);
 	vfs_read(file, buffer, file->size, 0);
-	regs->esi = init_elf(buffer, argv, envp);
+	regs->esi = init_elf(current->term, buffer, argv, envp);
 	vmm_free(buffer, file->size / 4096 + 1);
 	vfs_close(file);
 

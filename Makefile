@@ -4,17 +4,28 @@ all: res
 
 NETDEV = e1000
 
-QEMU_FLAGS = -m 2G -cdrom cdrom.iso -boot d -serial stdio -hda res/foxos.img
+QEMU_FLAGS = -m 2G -cdrom cdrom.iso -boot d -hda res/foxos.img
 QEMU_FLAGS += -netdev user,id=u1 -device $(NETDEV),netdev=u1 -object filter-dump,id=f1,netdev=u1,file=dump.dat
 QEMU_FLAGS += -soundhw ac97
 QEMU_FLAGS += -smp 1
+
+ifdef REMOTE
+	QEMU_FLAGS += -serial tcp:127.0.0.1:1234,server
+else
+	QEMU_FLAGS += -serial stdio
+endif
+
+ifdef AHCI
+	QEMU_FLAGS += -machine q35
+endif
 
 initrd.saf:
 	mkdir -p ./res/initrd/bin
 	cp -r ./user/bin/*.elf ./res/initrd/bin/ -v
 	cp -r ./initrd/* ./res/initrd/ -v
 	cp LICENSE ./res/initrd/LICENSE -v
-	cp *.md ./res/initrd/. -v
+	mkdir -p ./res/initrd/docs
+	cp *.md ./res/initrd/docs/. -v
 	mkdir -p ./res/initrd/EFI/BOOT
 	cp mckrnl/mckrnl.* ./res/initrd/EFI/BOOT/. -v
 	cp ./cdrom/zap-light16.psf ./res/initrd/EFI/BOOT/. -v
@@ -54,17 +65,20 @@ format_disk:
 format_disk_gpt:
 	dd if=/dev/zero of=res/foxos.img bs=512 count=93750 status=progress
 	echo 'echo "o\ny\nn\n1\n\n\n0700\nw\ny\n" | gdisk res/foxos.img' | sh
-	sudo losetup /dev/loop28 res/foxos.img -P
-	sudo mkfs.vfat -F 32 /dev/loop28p1
-	sudo losetup -d /dev/loop28
+	sudo losetup /dev/loop100 res/foxos.img -P
+	sudo mkfs.vfat -F 32 /dev/loop100p1
+	sudo losetup -d /dev/loop100
 
 run_dbg: iso
 	qemu-system-i386 $(QEMU_FLAGS) --no-reboot --no-shutdown -s -S
 
+run_vnc: iso set_kvm
+	qemu-system-i386 $(QEMU_FLAGS) -s -vnc :1
+
 EXECUTABLE = mckrnl/mckrnl.elf
 
 debug:
-	gdb -ex "target remote localhost:1234" -ex "b _main" -ex "continue" $(EXECUTABLE)
+	gdb -ex "symbol-file $(EXECUTABLE)" -ex "target remote localhost:1234" -ex "b _main"
 
 clean: iso
 	make -C mckrnl clean
@@ -90,6 +104,8 @@ pre_commit:
 	deno run -A config/write_syscalls_md.ts
 	deno run -A config/config.ts --clean --auto config/libc.json
 	deno run -A config/config.ts --clean --auto config/kernel.json
+	cd pkgs; bash clean.sh
+
 
 config_libc:
 	deno run -A config/config.ts config/libc.json

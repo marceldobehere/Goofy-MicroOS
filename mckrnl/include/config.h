@@ -3,10 +3,12 @@
 // Kernel configuration
 // Debug
 #define DEBUG
+// #define GDB_DEBUG
 #define UBSAN_SUPRES_TYPE_MISSMATCH
 #define UBSAN_IGNORE_SHIFT_OUT_OF_BOUNDS
 #define WAIT
 #define ALLOW_PANIC_CONTINUE
+// #define STACK_TRACE
 // End Debug
 
 // Network
@@ -24,6 +26,7 @@
 // #define SMP
 // #define PARSE_MADT
 // #define THREADS
+// #define AHCI_DRIVER
 // End Experimental
 
 // Input
@@ -35,10 +38,12 @@
 // #define STATUS_BAR
 // #define RAW_FRAMEBUFFER_ACCESS
 // #define FULL_SCREEN_TERMINAL
+#define MAX_VTERM 4
 // End Output
 
 // Other
 #define FD_OFFSET 5
+#define FAST_MEMORY
 // End Other
 
 // Paging
@@ -87,6 +92,7 @@
 #define SYS_TRUNCATE_ID 40
 #define SYS_TIME_MS_ID 41
 #define SYS_THREAD_ID 42
+#define SYS_SET_TERM_ID 43
 // End Syscalls
 
 // End Kernel configuration
