@@ -129,6 +129,7 @@ uint64_t AC97_writeBuffer(AC97Driver *driver, uint64_t offset, uint8_t *buffer,
                           uint64_t count);
 bool AC97_CheckMusic(AC97Driver *driver);
 void HandleIRQ(AC97Driver *driver);
+void AC97_TimerCheckCallback(AC97Driver* driver);
 
 #include <utils/io.h>
 

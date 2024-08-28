@@ -1,4 +1,5 @@
 #include "driver/pci/pci_bar.h"
+#include "driver/sound_driver.h"
 #include <driver/sound/ac97/ac97.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -24,7 +25,8 @@ void ac97_pci_found(pci_device_header_t header, uint16_t bus, uint16_t device, u
 void ac97_goofy_irq(cpu_registers_t* regs, void* ac97V)
 {
     AC97Driver* ac97 = (AC97Driver*)ac97V;
-    debugf("AC97 IRQ");
+    debugf("AC97 IRQ !!!");
+    todo();
 }
 
 void ac97_init(driver_t* driver)
@@ -102,7 +104,11 @@ void ac97_init(driver_t* driver)
     io_wait(500);
 
 
-    ac97Driver->irqId = io_read_byte(address, PCI_INTERRUPT_LINE);
+    // uint8_t irqId1 = io_read_byte(address, PCI_INTERRUPT_LINE);
+    uint8_t irqId2 = ac97Driver->GOOFY_header.interrupt_line;
+
+    ac97Driver->irqId = irqId2 + 0x20;
+
     // //Panic("AC97 IRQ: {}", to_string(irqId), true);
     // {
     //     IRQHandlerCallbackFuncs[irqId] = (void*)&HandleIRQ;
@@ -225,10 +231,10 @@ void ac97_init(driver_t* driver)
     //     //Audio::AudioBuffer::Create16Bit48KHzStereoBuffer(DEF_SAMPLE_COUNT)
     //     Audio::AudioBuffer::Create16Bit48KHzStereoBuffer(DEF_SAMPLE_COUNT)
     // );
-    // audioDestination->buffer->sampleCount = audioDestination->buffer->totalSampleCount;
-    // //lastDone = true;
-    // needManualRestart = true;
-    // doCheck = true;
+    //audioDestination->buffer->sampleCount = audioDestination->buffer->totalSampleCount;
+    //lastDone = true;
+    ac97Driver->needManualRestart = true;
+    ac97Driver->doCheck = true;
 
     // if (osData.ac97Driver == NULL)
     // {
@@ -242,6 +248,8 @@ void ac97_init(driver_t* driver)
     // PrintMsgEndLayer("AC97Driver");
 
     debugf("AC97 Drive Init Done");
+
+    global_sound_driver = &ac97Driver->driver;
 }
 
 char* ac97_get_device_name(driver_t* driver)
@@ -381,6 +389,136 @@ void AC97_set_sample_rate(AC97Driver* driver, uint32_t sample_rate)
 
 bool AC97_DoQuickCheck(AC97Driver* driver)
 {
+    if (driver->QuickCheck)
+    {
+        return false;
+    }
+
+
+    driver->QuickCheck = true;
+    int samplesReady = 0;
+
+    // TEST
+    int size = 2 * 6000;
+    uint16_t bruhus[size];
+    for (int i = 0; i < size; i++)
+    {
+        bruhus[i] = ((i / 200) & 1) * 5000;
+    }
+    samplesReady = size;
+
+
+
+    if (samplesReady < 1)
+    {
+        // TODO
+        // audioDestination->buffer->sampleCount = audioDestination->buffer->totalSampleCount;
+        // TODO
+        // samplesReady = audioDestination->RequestBuffers();
+        // TODO
+        // AudioDeviceStuff::reqMoreData(audioDestination);
+    }
+
+    if (samplesReady > 0 && 
+        driver != NULL)
+    {
+        
+        uint64_t tCount = 0;
+        //Serial::Writeln("> Writing {} bytes", to_string(audioDestination->buffer->byteCount));
+        // tCount = osData.ac97Driver->writeBuffer(0, 
+        //     (uint8_t*)(audioDestination->buffer->data), 
+        //     audioDestination->buffer->byteCount);
+
+        //samplesReady = audioDestination->buffer->totalSampleCount;
+
+
+        // TODO
+        int byteCount = samplesReady * 2;// samplesReady * (audioDestination->buffer->bitsPerSample / 8) * audioDestination->buffer->channelCount; // 16 bit, stereo
+        uint8_t* data = bruhus;//(uint8_t*)(audioDestination->buffer->data);
+
+        tCount = AC97_writeBuffer(driver, 0, 
+            data, 
+            byteCount);
+        //Serial::TWritelnf("> Writing %d/%d bytes (%d/%d samples) -> %d", byteCount, audioDestination->buffer->byteCount, samplesReady,audioDestination->buffer->totalSampleCount, tCount);
+
+        if (tCount != byteCount)
+        {
+            abortf("AC97Driver::HandleIRQ: tCount != byteCount");
+        }
+
+        // TODO:
+        // audioDestination->buffer->ClearBuffer();
+        // audioDestination->buffer->sampleCount = audioDestination->buffer->totalSampleCount;
+
+        
+        //lastDone = tDone;
+        //Panic("bruh: {}", to_string(c), true);
+        //Serial::Write("NICE");
+
+        //Serial::Writeln("<WROTE LE MUSIC>");
+        driver->QuickCheck = false;
+        samplesReady = 0;
+        return true;
+    }
+    else
+    {
+        // TODO: SEND MSG TO REQ AUDIO
+        //AudioDeviceStuff::reqMoreData(audioDestination);
+    }
+    
+    
+
+    // if (!dataReady)
+    // {
+    //     int c = audioDestination->RequestBuffers();
+    //     if (c > 0)
+    //     {
+    //         dataReady = true;
+    //     }
+    // }
+
+
+    driver->QuickCheck = false;
+    return false;
+}
+
+bool AC97_CheckMusic(AC97Driver* driver)
+{
+    // TODO
+    // if (driver->samplesReady > 0)
+    // {
+    //     return false;
+    //     bool ret =!handle_irq(); 
+    //     //Serial::Writeln("</AC97 CheckMusic: {}>", to_string(ret));
+    //     return ret;
+    // }
+    // //return true;
+
+
+    // TODO
+    // audioDestination->buffer->sampleCount = audioDestination->buffer->totalSampleCount;
+    // samplesReady = audioDestination->RequestBuffers();
+    // AudioDeviceStuff::reqMoreData(audioDestination);
+    // if (samplesReady > 0)
+    // {
+    //     //Serial::Writeln("</AC97 CheckMusic: {}>", to_string(false));
+    //     return false;
+    // }
+    // else
+    // {
+    //     // TODO: SEND MSG TO REQ AUDIO
+    // }
+    
+    return false;
+
+    
+    //Serial::Writeln("</AC97 CheckMusic: {}>", to_string(true));
+    return true;
+}
+
+bool AC97_handle_irq(AC97Driver* driver)
+{
+    debugf(" > AC97 Interrupt")
     driver->lastCheckTime = global_timer_driver->time_ms(global_timer_driver);
     //Read the status
     uint16_t status_byte = read_word(0, driver->m_bus_type, driver->m_output_channel + STATUS);//inw(m_output_channel + ChannelRegisters::STATUS);
@@ -439,46 +577,53 @@ bool AC97_DoQuickCheck(AC97Driver* driver)
     return false;
 }
 
-bool AC97_CheckMusic(AC97Driver* driver)
-{
-    // if (driver->samplesReady > 0)
-    // {
-    //     return false;
-    //     bool ret =!handle_irq(); 
-    //     //Serial::Writeln("</AC97 CheckMusic: {}>", to_string(ret));
-    //     return ret;
-    // }
-    // //return true;
-
-
-    // audioDestination->buffer->sampleCount = audioDestination->buffer->totalSampleCount;
-    // samplesReady = audioDestination->RequestBuffers();
-    // AudioDeviceStuff::reqMoreData(audioDestination);
-    // if (samplesReady > 0)
-    // {
-    //     //Serial::Writeln("</AC97 CheckMusic: {}>", to_string(false));
-    //     return false;
-    // }
-    // else
-    // {
-    //     // TODO: SEND MSG TO REQ AUDIO
-    // }
-    
-
-    
-    //Serial::Writeln("</AC97 CheckMusic: {}>", to_string(true));
-    return true;
-}
-
-bool AC97_handle_irq(AC97Driver* driver)
-{
-    debugf(" > AC97 Interrupt")
-}
-
 void HandleIRQ(AC97Driver* driver)
 {
     debugf(" > AC97 Interrupt 2");
     driver->lastCheckTime = global_timer_driver->time_ms(global_timer_driver);
     AC97_handle_irq(driver);
     driver->doCheck = true;
+}
+
+
+
+void AC97_TimerCheckCallback(AC97Driver* driver)
+{
+    if (driver == NULL)
+        return;
+
+    int64_t currTime = (int64_t)global_timer_driver->time_ms(global_timer_driver); 
+    //debugf("AC97 Start - %d", currTime);
+    int64_t ac97Time = ((int64_t)(driver->lastCheckTime + 500));
+
+    if (currTime > ac97Time)
+    {
+        debugf("AC97 Start 1 - %d", currTime)
+        AC97_DoQuickCheck(driver);
+        driver->lastCheckTime = currTime;
+
+
+        HandleIRQ(driver);
+        // driver->needManualRestart = true;  
+
+        // debugf("AC97 End %d", global_timer_driver->time_ms(global_timer_driver))          
+    }
+    else if (driver->doCheck)
+    {
+        debugf("AC97 Start 2 - %d", currTime)
+        driver->doCheck = false;
+        // driver->needManualRestart = AC97_CheckMusic(driver);
+
+        // // debugf("AC97 End %d", global_timer_driver->time_ms(global_timer_driver))
+    }
+    else if (driver->needManualRestart)
+    {
+        debugf("AC97 Start 3 - %d", currTime)
+        
+        driver->needManualRestart = AC97_CheckMusic(driver);
+
+        // // debugf("AC97 End %d", global_timer_driver->time_ms(global_timer_driver))
+    }
+
+    //debugf("AC97 End %d", global_timer_driver->time_ms(global_timer_driver));
 }

@@ -1,3 +1,5 @@
+#include "driver/sound/ac97/ac97.h"
+#include "driver/sound_driver.h"
 #include <driver/timer/pit.h>
 
 #include <interrupts/interrupts.h>
@@ -8,6 +10,7 @@
 #include <renderer/status_bar.h>
 
 // OLD DIV 65535
+// 5965
 #define PIT_DIVISOR 5965
 #define PIT_FREQ 1193182
 #define PIT_ACTUAL_DIVISOR (PIT_FREQ / PIT_DIVISOR)
@@ -33,6 +36,9 @@ cpu_registers_t* pit_interrupt_handler(cpu_registers_t* registers, void* data) {
 	draw_status_bar();
 #endif
 
+	if (global_sound_driver != 0)
+		AC97_TimerCheckCallback((AC97Driver*)global_sound_driver);
+	
 	return schedule(registers, data);	
 }
 
