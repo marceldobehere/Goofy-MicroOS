@@ -1,11 +1,15 @@
+#include "driver/pci/pci_bar.h"
 #include <driver/sound/ac97/ac97.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <memory/vmm.h>
 #include <driver/pci/pci_io.h>
 #include <utils/io.h>
 #include <interrupts/interrupts.h>
 #include <driver/timer_driver.h>
+#include <assert.h>
 
 sound_driver_t* get_ac97_driver(pci_device_header_t header, uint16_t bus, uint16_t device, uint16_t function)
 {
@@ -27,6 +31,7 @@ void ac97_init(driver_t* driver)
 {
     // DO INIT
     AC97Driver* ac97Driver = (AC97Driver*)driver;
+    debugf("AC97 Drive Init");
 
     // PCIBaseAddress = pciBaseAddress;
     uint64_t address = (uint64_t)ac97Driver->GOOFY_function << 12 | (uint64_t)ac97Driver->GOOFY_device << 15 | (uint64_t)ac97Driver->GOOFY_bus << 20 | 0x80000000;
@@ -34,7 +39,6 @@ void ac97_init(driver_t* driver)
 
     // PrintMsg("> AC97 Driver Init");
     // osData.debugTerminalWindow->Log("YOOO AC97 YES");
-
 
 
     //PrintMsg("> Disabled PCI IO SPACE");
@@ -75,6 +79,7 @@ void ac97_init(driver_t* driver)
         return;
     }
 
+
     // if (osData.ac97Driver != NULL)
     // {
     //     PrintMsg("> AC97 Driver NVM");
@@ -90,7 +95,9 @@ void ac97_init(driver_t* driver)
     enable_mem_space(address);
     io_wait(500);
 
-
+    debugf("AC97 MAP ADDR");
+    pci_bar_t addrBar = pci_get_bar(&ac97Driver->GOOFY_header.BAR0, 0, ac97Driver->GOOFY_bus, ac97Driver->GOOFY_device, ac97Driver->GOOFY_function);
+    debugf("AC97 MEM: %x. IO: %x, SIZE: %x, TYPE: %d", (uint32_t)addrBar.mem_address, addrBar.io_address, addrBar.size, addrBar.type);
 
     io_wait(500);
 
@@ -109,18 +116,18 @@ void ac97_init(driver_t* driver)
     // // m_address = address;
     // //m_mixer_address = PCI::io_read_word(address, PCI_BAR0) & ~1;
     pci_device_header_t hdr = ac97Driver->GOOFY_header;
-    ac97Driver->m_mixer_type = pci_get_bar(hdr.BAR0, 0, ac97Driver->GOOFY_bus, ac97Driver->GOOFY_device, ac97Driver->GOOFY_function);
+    ac97Driver->m_mixer_type = pci_get_bar(&hdr.BAR0, 0, ac97Driver->GOOFY_bus, ac97Driver->GOOFY_device, ac97Driver->GOOFY_function);
     // //PrintMsgCol("> Mixer Address: {}", ConvertHexToString(m_mixer_address), Colors.yellow);
     // //PrintMsgCol("> Mixer Address (2): {}", ConvertHexToString(((PCI::PCIHeader0*)address)->BAR0), Colors.yellow);
     if (ac97Driver->m_mixer_type.type == MMIO64)
     {
         //osData.debugTerminalWindow->Log("> BUS TYPE USING BAR2", Colors.orange);
-        ac97Driver->m_bus_type =  pci_get_bar(hdr.BAR0, 2, ac97Driver->GOOFY_bus, ac97Driver->GOOFY_device, ac97Driver->GOOFY_function);;//pci_get_bar((PCI::PCIHeader0*)address, 2);
+        ac97Driver->m_bus_type =  pci_get_bar(&hdr.BAR0, 2, ac97Driver->GOOFY_bus, ac97Driver->GOOFY_device, ac97Driver->GOOFY_function);;//pci_get_bar((PCI::PCIHeader0*)address, 2);
     }
     else
     {
         //osData.debugTerminalWindow->Log("> BUS TYPE USING BAR1", Colors.orange);
-        ac97Driver->m_bus_type = pci_get_bar(hdr.BAR0, 1, ac97Driver->GOOFY_bus, ac97Driver->GOOFY_device, ac97Driver->GOOFY_function);// pci_get_bar((PCI::PCIHeader0*)address, 1);
+        ac97Driver->m_bus_type = pci_get_bar(&hdr.BAR0, 1, ac97Driver->GOOFY_bus, ac97Driver->GOOFY_device, ac97Driver->GOOFY_function);// pci_get_bar((PCI::PCIHeader0*)address, 1);
     }
     // //PrintMsgCol("> Mixer Address (3): {}", ConvertHexToString(m_mixer_address), Colors.yellow);
 
@@ -164,9 +171,8 @@ void ac97_init(driver_t* driver)
     ac97Driver->m_output_buffer_descriptors = (BufferDescriptor*) ac97Driver->m_output_buffer_descriptor_region;
 
 
-
     //Initialize the card with cold reset of bus and mixer, enable interrupts
-    int control = read_dword(address, ac97Driver->m_bus_type, GLOBAL_CONTROL);//inl(m_bus_address + BusRegisters::GLOBAL_CONTROL);
+    int control = read_dword(ac97Driver->m_bus_type.mem_address, ac97Driver->m_bus_type, GLOBAL_CONTROL);//inl(m_bus_address + BusRegisters::GLOBAL_CONTROL);
     control |= COLD_RESET | INTERRUPT_ENABLE;
     control &= ~(0b11 << 22);
     control |=   (0b00 << 22);
@@ -174,6 +180,7 @@ void ac97_init(driver_t* driver)
     write_mixer(ac97Driver, RESET, 1);
     //PrintMsg("> Initialized Card");
     //Println();
+    debugf("AC97 Drive BLEH");
 
 
     //TODO: Verify version?
@@ -196,10 +203,13 @@ void ac97_init(driver_t* driver)
             break;
         io_wait(5000);
     }
-    //PrintMsg("> Card Sample Rate: {}", to_string((int)m_sample_rate));
+    //PrintMsg("> Card Sample Rate: {}", to_string((int)>m_sample_rate));
 
     if (ac97Driver->m_sample_rate != wantedSampleRate)
-        debugf("> SAMPLE RATE IS BORKED");// PrintMsg("> Sample rate is borked!");//Panic("AC97: Failed to set sample rate! GOT: {}", to_string((int)m_sample_rate), true);
+        debugf("> SAMPLE RATE IS BORKED (%d != %d)", ac97Driver->m_sample_rate, wantedSampleRate)// PrintMsg("> Sample rate is borked!");//Panic("AC97: Failed to set sample rate! GOT: {}", to_string((int)>m_sample_rate), true);
+    else
+        debugf("> SAMPLE RATE OK!")
+
 
     AC97_reset_output(ac97Driver);
     // PrintMsg("> Reset Output");
@@ -230,6 +240,8 @@ void ac97_init(driver_t* driver)
     // }
 
     // PrintMsgEndLayer("AC97Driver");
+
+    debugf("AC97 Drive Init Done");
 }
 
 char* ac97_get_device_name(driver_t* driver)
@@ -257,39 +269,216 @@ AC97Driver* NEW_AC97Driver (pci_device_header_t header, uint16_t bus, uint16_t d
     return driver;
 }
 
-
-
-bool AC97_DoQuickCheck(AC97Driver* driver)
+inline int min(int a, int b)
 {
-
+    if (a <= b)
+        return a;
+    return b;
 }
 
-void AC97_reset_output(AC97Driver* driver)
+inline int max(int a, int b)
 {
-
-}
-
-void AC97_set_sample_rate(AC97Driver* driver, uint32_t sample_rate)
-{
-
-}
-
-bool AC97_handle_irq(AC97Driver* driver)
-{
-
+    if (a >= b)
+        return a;
+    return b;
 }
 
 uint64_t AC97_writeBuffer(AC97Driver* driver, uint64_t offset, uint8_t* buffer, uint64_t count)
 {
+    buffer += offset;
+    count -= offset;
 
+    uint64_t n_written = 0;
+    while(count > 0) 
+    {
+        // //Wait until we have a free buffer to write to
+        // do 
+        // {
+        //     //Read the status, current index, and last valid index
+        //     //TaskManager::ScopedCritical critical;
+        //     auto status_byte = inw(m_output_channel + ChannelRegisters::STATUS);
+        //     BufferStatus status = {.value = status_byte};
+        //     auto current_index = inb(m_output_channel + ChannelRegisters::CURRENT_INDEX);
+        //     auto last_valid_index = inb(m_output_channel + ChannelRegisters::LAST_VALID_INDEX);
+        //     auto num_buffers_left = last_valid_index >= current_index ? last_valid_index - current_index : AC97_NUM_BUFFER_DESCRIPTORS - (current_index - last_valid_index);
+        //     if(!status.is_halted)
+        //         num_buffers_left++;
+        //     if(num_buffers_left < AC97_NUM_BUFFER_DESCRIPTORS)
+        //         break;
+        //     //critical.exit();
+        //     m_blocker = false;
+        //     //TaskManager::current_thread()->block(m_blocker);
+        //     // if(m_blocker.was_interrupted())
+        //     //     return 0;
+        // } while(m_output_dma_enabled);
+
+        //If the output DMA is not currently enabled, reset the PCM channel to be sure
+        if(!driver->m_output_dma_enabled)
+            AC97_reset_output(driver);
+
+        //reset_output();
+
+        //Copy as much data as is applicable to the current output buffer
+        uint32_t* output_buffer = (uint32_t*)(driver->m_output_buffer_region + 0x1000 * driver->m_current_output_buffer_page);
+        size_t num_bytes = min(count, 0x1000);
+        //buffer.read((uint8_t*) output_buffer, n_written, num_bytes); // buff offset count
+        memcpy(output_buffer, (uint8_t*) buffer + n_written, num_bytes);
+        count -= num_bytes;
+        n_written += num_bytes;
+
+        //Create the buffer descriptor
+        BufferDescriptor* descriptor = &driver->m_output_buffer_descriptors[driver->m_current_buffer_descriptor];
+        descriptor->data_addr = (uint32_t)(((uint64_t)driver->m_output_buffer_region) + 0x1000 * driver->m_current_output_buffer_page);//m_output_buffer_region->object()->physical_page(m_current_output_buffer_page).paddr();
+        descriptor->num_samples = num_bytes / sizeof(uint16_t);
+        //descriptor->flags = {false, true};
+        descriptor->flags.is_last_entry = false;
+        descriptor->flags.interrupt_on_completion = true;
+
+        //Set the buffer descriptor list address and last valid index in the channel registers
+        write_dword(0, driver->m_bus_type, driver->m_output_channel + BUFFER_LIST_ADDR, (uint32_t)(uint64_t)driver->m_output_buffer_descriptor_region);//outl(m_output_channel + ChannelRegisters::BUFFER_LIST_ADDR, (uint32_t)(uint64_t)m_output_buffer_descriptor_region);//m_output_buffer_descriptor_region->object()->physical_page(0).paddr());
+        write_byte(0, driver->m_bus_type, driver->m_output_channel + LAST_VALID_INDEX, driver->m_current_buffer_descriptor);//outb(m_output_channel + ChannelRegisters::LAST_VALID_INDEX, m_current_buffer_descriptor);
+
+        //If the output DMA is not enabled already, enable it
+        if(!driver->m_output_dma_enabled) {
+            uint8_t ctrl = read_byte(0, driver->m_bus_type, driver->m_output_channel + CONTROL);//inb(m_output_channel + ChannelRegisters::CONTROL);
+            ctrl |= PAUSE_BUS_MASTER | ERROR_INTERRUPT | COMPLETION_INTERRUPT;
+            write_byte(0, driver->m_bus_type, driver->m_output_channel + CONTROL, ctrl);//outb(m_output_channel + ChannelRegisters::CONTROL, ctrl);
+            driver->m_output_dma_enabled = true;
+        }
+
+        //Increment buffer page and buffer descriptor index
+        driver->m_current_output_buffer_page++;
+        driver->m_current_output_buffer_page %= AC97_OUTPUT_BUFFER_PAGES;
+        driver->m_current_buffer_descriptor++;
+        driver->m_current_buffer_descriptor %= AC97_NUM_BUFFER_DESCRIPTORS;
+    }
+
+    return n_written;
+}
+
+
+void AC97_reset_output(AC97Driver* driver)
+{
+    int timeOut = 200;
+    do
+    {
+        write_byte(0, driver->m_bus_type, driver->m_output_channel + CONTROL, RESET_REGISTERS);//outb(m_output_channel + ChannelRegisters::CONTROL, ControlFlags::RESET_REGISTERS);
+        io_wait(10);
+    } while((timeOut-- > 0) && read_byte(0, driver->m_bus_type, driver->m_output_channel + CONTROL) & RESET_REGISTERS); //inb(m_output_channel + ChannelRegisters::CONTROL)
+
+    driver->m_output_dma_enabled = false;
+    driver->m_current_buffer_descriptor = 0;
+    driver->writeBufferCount = 0;
+}
+
+void AC97_set_sample_rate(AC97Driver* driver, uint32_t sample_rate)
+{
+    io_wait(1000);
+    write_word(0, driver->m_mixer_type, SAMPLE_RATE, sample_rate);//outw(m_mixer_address + MixerRegisters::SAMPLE_RATE, sample_rate);
+    io_wait(1000);
+    driver->m_sample_rate = read_word(0, driver->m_mixer_type, SAMPLE_RATE);//inw(m_mixer_address + MixerRegisters::SAMPLE_RATE);
+}
+
+bool AC97_DoQuickCheck(AC97Driver* driver)
+{
+    driver->lastCheckTime = global_timer_driver->time_ms(global_timer_driver);
+    //Read the status
+    uint16_t status_byte = read_word(0, driver->m_bus_type, driver->m_output_channel + STATUS);//inw(m_output_channel + ChannelRegisters::STATUS);
+    BufferStatus status = {.value = status_byte};
+
+    if(status.fifo_error)
+        debugf("> AC97 GOT A FIFO ERROR!");//Panic("AC97 GOT FIFO ERROR!");//KLog::err("AC97", "Encountered FIFO error!");
+
+
+
+    //osData.debugTerminalWindow->newPosition.x--;
+
+    status.value = 0;
+    status.completion_interrupt_status = true;
+    status.last_valid_interrupt = true;
+    status.fifo_error = true;
+    write_word(0, driver->m_bus_type, driver->m_output_channel + STATUS, status.value);;//outw(m_output_channel + ChannelRegisters::STATUS, status.value);
+
+    // DoQuickCheck();
+    // return true;
+
+
+
+    uint8_t current_index = read_byte(0, driver->m_bus_type, driver->m_output_channel + CURRENT_INDEX);//inb(m_output_channel + ChannelRegisters::CURRENT_INDEX);
+    uint8_t last_valid_index = read_byte(0, driver->m_bus_type, driver->m_output_channel + LAST_VALID_INDEX);//inb(m_output_channel + ChannelRegisters::LAST_VALID_INDEX);
+    
+    int offset = 4;
+    int beginIndex = (last_valid_index + AC97_NUM_BUFFER_DESCRIPTORS - offset) % AC97_NUM_BUFFER_DESCRIPTORS;
+    int endIndex = (last_valid_index + 2) % AC97_NUM_BUFFER_DESCRIPTORS;
+
+    if (endIndex >= beginIndex)
+    {
+        if (current_index >= beginIndex && current_index <= endIndex)
+        {
+            return AC97_DoQuickCheck(driver);
+        }
+    }
+    else
+    {
+        if (current_index >= beginIndex || current_index <= endIndex)
+        {
+            return AC97_DoQuickCheck(driver);
+        }
+    }
+
+    //If we're not done, don't do anything
+    if(!status.completion_interrupt_status)
+        return false;
+    
+    // if(current_index >= ((last_valid_index + AC97_NUM_BUFFER_DESCRIPTORS - 4) % AC97_NUM_BUFFER_DESCRIPTORS)) {
+    //     //reset_output();
+    //     DoQuickCheck();
+    // }
+    driver->m_blocker = true;
+
+    return false;
 }
 
 bool AC97_CheckMusic(AC97Driver* driver)
 {
+    // if (driver->samplesReady > 0)
+    // {
+    //     return false;
+    //     bool ret =!handle_irq(); 
+    //     //Serial::Writeln("</AC97 CheckMusic: {}>", to_string(ret));
+    //     return ret;
+    // }
+    // //return true;
 
+
+    // audioDestination->buffer->sampleCount = audioDestination->buffer->totalSampleCount;
+    // samplesReady = audioDestination->RequestBuffers();
+    // AudioDeviceStuff::reqMoreData(audioDestination);
+    // if (samplesReady > 0)
+    // {
+    //     //Serial::Writeln("</AC97 CheckMusic: {}>", to_string(false));
+    //     return false;
+    // }
+    // else
+    // {
+    //     // TODO: SEND MSG TO REQ AUDIO
+    // }
+    
+
+    
+    //Serial::Writeln("</AC97 CheckMusic: {}>", to_string(true));
+    return true;
+}
+
+bool AC97_handle_irq(AC97Driver* driver)
+{
+    debugf(" > AC97 Interrupt")
 }
 
 void HandleIRQ(AC97Driver* driver)
 {
-
+    debugf(" > AC97 Interrupt 2");
+    driver->lastCheckTime = global_timer_driver->time_ms(global_timer_driver);
+    AC97_handle_irq(driver);
+    driver->doCheck = true;
 }

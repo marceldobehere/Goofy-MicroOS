@@ -1,12 +1,12 @@
 all: res
-	make -C mckrnl
-	make -C user
+	make -C mckrnl -j8
+	make -C user -j8
 
 NETDEV = e1000
 
 QEMU_FLAGS = -m 2G -cdrom cdrom.iso -boot d -hda res/foxos.img
 QEMU_FLAGS += -netdev user,id=u1 -device $(NETDEV),netdev=u1 -object filter-dump,id=f1,netdev=u1,file=dump.dat
-QEMU_FLAGS += -soundhw ac97
+QEMU_FLAGS += -audio driver=pipewire,model=ac97
 QEMU_FLAGS += -smp 1
 
 ifdef REMOTE

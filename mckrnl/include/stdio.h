@@ -20,7 +20,7 @@ int read_core_id();
 void breakpoint();
 
 #ifdef DEBUG
-#define debugf(fmt, ...) debugf_intrnl("[%d] [%s:%d in %s] ", read_core_id(), __FILE__, __LINE__, __FUNCTION__); debugf_intrnl(fmt, ##__VA_ARGS__); debugf_intrnl("\n")
+#define debugf(fmt, ...) {debugf_intrnl("[%d] [%s:%d in %s] ", read_core_id(), __FILE__, __LINE__, __FUNCTION__); debugf_intrnl(fmt, ##__VA_ARGS__); debugf_intrnl("\n");}
 #else
 #define debugf(fmt, ...)
 #endif

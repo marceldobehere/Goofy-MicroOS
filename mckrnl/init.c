@@ -179,11 +179,11 @@ void _main(multiboot_info_t* mb_info) {
 	parse_madt();
 #endif
 
-	enumerate_pci();
 
 	if (!gdb_active && enable_serial) {
 		register_driver((driver_t*) &serial_output_driver);
 	}
+
 #ifdef FULL_SCREEN_TERMINAL
 #ifndef TEXT_MODE_EMULATION
 #error TEXT_MODE_EMULATION required!
@@ -198,6 +198,8 @@ void _main(multiboot_info_t* mb_info) {
 	register_driver((driver_t*) &hpet_driver);
 	register_driver((driver_t*) &cmos_driver);
 	//register_driver((driver_t*) &pc_speaker_driver);
+
+	enumerate_pci();
 
 	activate_drivers();
 
